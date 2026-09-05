@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>Reflex - Login</title>
+
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/login.css') }}"
+>
+
+</head>
+
+<body>
+
+```
+<main class="login-container">
+
+    <div class="login-card">
+
+        <!-- ==================================================
+             BRAND
+        =================================================== -->
+
+        <div class="brand">
+
+            <div class="brand-icon">
+                R
+            </div>
+
+            <h1>Reflex</h1>
+
+            <p>
+                Delivery Management System
+            </p>
+
+        </div>
+
+
+        <!-- ==================================================
+             LOGIN HEADING
+        =================================================== -->
+
+        <div class="login-heading">
+
+            <h2>
+                Welcome back
+            </h2>
+
+            <p>
+                Sign in to continue to your dashboard.
+            </p>
+
+        </div>
+
+
+        <!-- ==================================================
+             LOGIN FORM
+        =================================================== -->
+
+        <form id="loginForm">
+
+            <div class="form-group">
+
+                <label for="phone">
+                    Phone Number
+                </label>
+
+                <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    placeholder="e.g. 0712345678"
+                    autocomplete="tel"
+                    required
+                >
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="password">
+                    Password
+                </label>
+
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Enter your password"
+                    autocomplete="current-password"
+                    required
+                >
+
+            </div>
+
+
+            <button
+                type="submit"
+                id="loginButton"
+            >
+                Sign In
+            </button>
+
+        </form>
+
+
+        <!-- ==================================================
+             LOGIN MESSAGE
+        =================================================== -->
+
+        <div
+            id="message"
+            class="message"
+        ></div>
+
+
+        <!-- ==================================================
+             REGISTRATION LINK
+        =================================================== -->
+
+        <div class="register-link">
+
+            <span>
+                Don't have an account?
+            </span>
+
+            <a
+                href="{{ url_for('auth.register_page') }}"
+            >
+                Create one
+            </a>
+
+        </div>
+
+
+        <!-- ==================================================
+             FOOTER
+        =================================================== -->
+
+        <div class="login-footer">
+
+            <p>
+                Reflex Delivery Management System
+            </p>
+
+        </div>
+
+    </div>
+
+</main>
+
+
+<!-- ==========================================================
+     LOGIN JAVASCRIPT
+=========================================================== -->
+
+<script
+    src="{{ url_for('static', filename='js/login.js') }}"
+></script>
+```
+
+</body>
+
+</html>

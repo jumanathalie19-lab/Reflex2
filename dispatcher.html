@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+
+<title>Reflex - Dispatcher</title>
+
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/dispatcher.css') }}"
+>
+
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/nav.css') }}"
+>
+
+
+</head>
+
+<body>
+
+
+<!-- =========================================================
+     NAVIGATION
+========================================================== -->
+
+<nav class="reflex-nav">
+
+    <span class="brand">
+        REFLEX
+    </span>
+
+    <a
+        href="/dispatcher"
+        class="active"
+    >
+        Dispatcher
+    </a>
+
+    <button
+        type="button"
+        id="logoutButton"
+        class="logout-button"
+    >
+        Logout
+    </button>
+
+</nav>
+
+
+<!-- =========================================================
+     HEADER
+========================================================== -->
+
+<header>
+
+    <h1>
+        Reflex
+    </h1>
+
+    <p>
+        Dispatcher Dashboard
+    </p>
+
+    <p
+        id="dispatcherWelcome"
+        class="welcome-message"
+    >
+        Loading dispatcher information...
+    </p>
+
+</header>
+
+
+<!-- =========================================================
+     MAIN CONTENT
+========================================================== -->
+
+<main>
+
+    <!-- -----------------------------------------------------
+         DISPATCHER INFORMATION
+    ------------------------------------------------------ -->
+
+    <section class="dispatcher-info">
+
+        <h2>
+            Dispatcher
+        </h2>
+
+        <p class="description">
+            You are signed in as a dispatcher. Your dispatcher
+            identity is automatically obtained from your account.
+        </p>
+
+        <div class="user-details">
+
+            <p>
+                <strong>Name:</strong>
+                <span id="dispatcherName">Loading...</span>
+            </p>
+
+            <p>
+                <strong>Dispatcher ID:</strong>
+                <span id="dispatcherId">Loading...</span>
+            </p>
+
+        </div>
+
+    </section>
+
+
+    <!-- -----------------------------------------------------
+         OPEN DELIVERY REQUESTS
+    ------------------------------------------------------ -->
+
+    <section>
+
+        <h2>
+            Open Delivery Requests
+        </h2>
+
+        <p class="description">
+            Assign an open delivery request to an available rider.
+        </p>
+
+        <button
+            type="button"
+            id="refreshDeliveriesButton"
+            onclick="loadOpenDeliveries()"
+        >
+            Refresh List
+        </button>
+
+        <div id="deliveries">
+
+            <p class="empty-hint">
+                Loading delivery requests...
+            </p>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<!-- =========================================================
+     SUCCESS / ERROR MODAL
+========================================================== -->
+
+<div
+    id="messageModal"
+    class="modal-overlay"
+    aria-hidden="true"
+>
+
+    <div
+        class="message-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+    >
+
+        <button
+            type="button"
+            id="modalCloseButton"
+            class="modal-close"
+            aria-label="Close"
+        >
+            &times;
+        </button>
+
+        <div
+            id="modalIcon"
+            class="modal-icon"
+        >
+            ✓
+        </div>
+
+        <h2 id="modalTitle">
+            Success
+        </h2>
+
+        <p id="modalMessage">
+            Action completed successfully.
+        </p>
+
+        <button
+            type="button"
+            id="modalOkButton"
+            class="modal-ok-button"
+        >
+            OK
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================== -->
+
+<script
+    src="{{ url_for('static', filename='js/dispatcher.js') }}"
+></script>
+
+
+</body>
+
+</html>

@@ -1,0 +1,94 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflex - Rider</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/rider.css') }}">
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/nav.css') }}">
+</head>
+
+<body>
+
+    <nav class="reflex-nav">
+        <span class="brand">REFLEX</span>
+
+        <a href="/rider" class="active">Rider</a>
+
+        <button type="button"
+                id="logoutButton"
+                class="logout-button">
+            Logout
+        </button>
+    </nav>
+
+    <header>
+        <h1>Reflex</h1>
+        <p>Rider Dashboard</p>
+        <p id="riderWelcome" class="welcome-message">
+            Loading rider information...
+        </p>
+    </header>
+
+    <main>
+
+        <!-- Logged-in Rider Information -->
+        <section class="rider-info">
+            <h2>Rider Information</h2>
+
+            <p class="description">
+                Your rider identity is automatically obtained from
+                your logged-in Reflex account.
+            </p>
+
+            <div class="user-details">
+                <p>
+                    <strong>Name:</strong>
+                    <span id="riderName">Loading...</span>
+                </p>
+
+                <p>
+                    <strong>Rider ID:</strong>
+                    <span id="riderId">Loading...</span>
+                </p>
+
+                <p>
+                    <strong>Phone:</strong>
+                    <span id="riderPhone">Loading...</span>
+                </p>
+            </div>
+        </section>
+
+        <!-- Active Deliveries -->
+        <section>
+            <h2>My Active Deliveries</h2>
+
+            <p class="description">
+                Deliveries assigned to you will appear below.
+            </p>
+
+            <button type="button"
+                    id="refreshDeliveriesButton">
+                Refresh Deliveries
+            </button>
+
+            <div id="deliveries">
+                <p class="empty-hint">
+                    Loading your deliveries...
+                </p>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="{{ url_for('static', filename='js/rider.js') }}"></script>
+
+</body>
+</html>
+
+

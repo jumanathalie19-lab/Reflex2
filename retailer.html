@@ -1,0 +1,161 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Reflex - New Delivery</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/retailer.css') }}"
+    >
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/nav.css') }}"
+    >
+
+</head>
+
+<body>
+
+    <!-- ==========================================================
+         NAVIGATION
+    =========================================================== -->
+
+    <nav class="reflex-nav">
+
+        <span class="brand">
+            REFLEX
+        </span>
+
+        <a
+            href="/retailer"
+            class="active"
+        >
+            Retailer
+        </a>
+
+        <!-- LOGOUT BUTTON -->
+        <button
+            type="button"
+            id="logoutButton"
+            class="logout-button"
+        >
+            Logout
+        </button>
+
+    </nav>
+
+
+    <!-- ==========================================================
+         MAIN CONTENT
+    =========================================================== -->
+
+    <div class="container">
+
+        <div class="form-card">
+
+            <h1>
+                Reflex
+            </h1>
+
+            <h2>
+                Log New Delivery
+            </h2>
+
+            <p class="description">
+                Enter the customer and delivery details below.
+            </p>
+
+
+            <!-- ==================================================
+                 DELIVERY FORM
+            =================================================== -->
+
+            <form id="deliveryForm">
+
+                <label for="customer_name">
+                    Customer Name
+                </label>
+
+                <input
+                    type="text"
+                    id="customer_name"
+                    name="customer_name"
+                    placeholder="e.g. John Mwangi"
+                    required
+                >
+
+
+                <label for="customer_phone">
+                    Customer Phone
+                </label>
+
+                <input
+                    type="tel"
+                    id="customer_phone"
+                    name="customer_phone"
+                    placeholder="e.g. 0756789012"
+                    required
+                >
+
+
+                <label for="delivery_address">
+                    Delivery Address
+                </label>
+
+                <input
+                    type="text"
+                    id="delivery_address"
+                    name="delivery_address"
+                    placeholder="e.g. Chuka Town"
+                    required
+                >
+
+
+                <label for="item_description">
+                    Item Description
+                </label>
+
+                <textarea
+                    id="item_description"
+                    name="item_description"
+                    placeholder="e.g. Samsung phone charger"
+                    required
+                ></textarea>
+
+
+                <button type="submit">
+                    Submit Delivery Request
+                </button>
+
+            </form>
+
+
+            <!-- ==================================================
+                 MESSAGE
+            =================================================== -->
+
+            <div id="message"></div>
+
+        </div>
+
+    </div>
+
+
+    <script
+        src="{{ url_for('static', filename='js/retailer.js') }}"
+    ></script>
+
+</body>
+
+</html>

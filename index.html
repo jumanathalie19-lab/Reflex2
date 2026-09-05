@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflex Delivery System</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/nav.css">
+</head>
+<body>
+    <nav class="reflex-nav">
+        <span class="brand">REFLEX</span>
+        <a href="/" class="active">Home</a>
+       
+    </nav>
+    <header>
+        <h1>Reflex</h1>
+        <p>Delivery Management System</p>
+    </header>
+    <main>
+        <section>
+            <h2>System Status</h2>
+            <button onclick="checkHealth()">
+                Check API &amp; Database
+            </button>
+            <p id="health-result"></p>
+        </section>
+        <section>
+            <h2>Open Delivery Requests</h2>
+            <button onclick="loadDeliveries()">
+                Load Deliveries
+            </button>
+            <div id="deliveries"></div>
+        </section>
+    </main>
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
