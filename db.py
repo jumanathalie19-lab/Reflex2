@@ -5,7 +5,7 @@ import psycopg2
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
-def get_db_connection():
+def get_connection():
     if not DATABASE_URL:
         raise RuntimeError(
             "DATABASE_URL environment variable is not set."
