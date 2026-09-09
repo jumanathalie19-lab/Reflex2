@@ -1,12 +1,19 @@
-
 import os
-import mysql.connector
+import psycopg2
 
 
-def get_connection():
-    return mysql.connector.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        user=os.environ.get("DB_USER", "root"),
-        password=os.environ.get("DB_PASSWORD", ""),
-        database=os.environ.get("DB_NAME", "reflex_db"),
-    )
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+
+def get_db_connection():
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is not set."
+        )
+
+    try:
+        return psycopg2.connect(DATABASE_URL)
+    except psycopg2.Error as e:
+        raise RuntimeError(
+            f"Could not connect to PostgreSQL database: {e}"
+        )
