@@ -31,25 +31,52 @@ document.addEventListener("DOMContentLoaded", function () {
         const role = document.getElementById("role").value;
 
         // ----------------------------------------------------
-        // Validate passwords
+        // Validate name
         // ----------------------------------------------------
 
-        if (password !== confirmPassword) {
+        if (!name) {
+            message.textContent = "Please enter your full name.";
+            return;
+        }
 
-            message.textContent = "Passwords do not match.";
+        // ----------------------------------------------------
+        // Validate phone
+        // ----------------------------------------------------
+
+        if (!phone) {
+            message.textContent = "Please enter your phone number.";
+            return;
+        }
+
+        // ----------------------------------------------------
+        // Validate password
+        // ----------------------------------------------------
+
+        if (!password) {
+            message.textContent = "Please enter a password.";
             return;
         }
 
         if (password.length < 6) {
-
             message.textContent =
                 "Password must be at least 6 characters.";
-
             return;
         }
 
-        if (!role) {
+        // ----------------------------------------------------
+        // Confirm password
+        // ----------------------------------------------------
 
+        if (password !== confirmPassword) {
+            message.textContent = "Passwords do not match.";
+            return;
+        }
+
+        // ----------------------------------------------------
+        // Validate role
+        // ----------------------------------------------------
+
+        if (!role) {
             message.textContent = "Please select a role.";
             return;
         }
@@ -60,7 +87,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         registerButton.disabled = true;
         registerButton.textContent = "Creating account...";
-
         message.textContent = "Creating your account...";
 
         // ----------------------------------------------------
@@ -71,10 +97,15 @@ document.addEventListener("DOMContentLoaded", function () {
             name: name,
             phone: phone,
             password: password,
+            confirm_password: confirmPassword,
             role: role
         };
 
         try {
+
+            // ------------------------------------------------
+            // Send registration request
+            // ------------------------------------------------
 
             const response = await fetch("/register", {
 
@@ -89,10 +120,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 body: JSON.stringify(registrationData)
             });
 
+            // ------------------------------------------------
+            // Read server response
+            // ------------------------------------------------
+
             const result = await response.json();
 
             // ------------------------------------------------
-            // Success
+            // Registration successful
             // ------------------------------------------------
 
             if (response.ok) {
@@ -103,17 +138,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 form.reset();
 
+                // Redirect to login
                 setTimeout(function () {
 
-                    window.location.href = "/login";
+                    window.location.href =
+                        result.redirect || "/login";
 
                 }, 1500);
 
-            } else {
+            }
+
+            // ------------------------------------------------
+            // Registration failed
+            // ------------------------------------------------
+
+            else {
 
                 message.textContent =
-                    result.message ||
                     result.error ||
+                    result.message ||
                     "Registration failed.";
             }
 
@@ -125,6 +168,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 "Could not connect to the Reflex server.";
 
         } finally {
+
+            // ------------------------------------------------
+            // Re-enable button
+            // ------------------------------------------------
 
             registerButton.disabled = false;
             registerButton.textContent = "Create Account";
