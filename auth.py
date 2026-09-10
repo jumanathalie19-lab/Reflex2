@@ -1,4 +1,4 @@
-```python
+
 from functools import wraps
 
 from flask import (
@@ -438,4 +438,4 @@ def role_required(*allowed_roles):
         return wrapped_view
 
     return decorator
-```
+
