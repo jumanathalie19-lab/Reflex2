@@ -1,5 +1,5 @@
-
 from flask import Blueprint, jsonify, request, session
+from psycopg2.extras import RealDictCursor
 
 from auth import role_required
 from db import get_connection
@@ -12,23 +12,13 @@ assignment_bp = Blueprint("assignment", __name__)
 # ============================================================
 # DEMO QR CODE
 # ============================================================
-#
-# For the prototype/demo, all assigned deliveries use the
-# same simple QR value.
-#
-# In a production system, this should be replaced with a
-# unique QR code for every delivery.
-# ============================================================
 
 DEMO_QR_CODE = "REFLEX-DELIVERY"
 
 
 # ============================================================
 # CREATE DELIVERY
-# ============================================================
-#
-# Retailer creates a new delivery request.
-# Retailer ID comes automatically from the logged-in session.
+# POST /deliveries
 # ============================================================
 
 @assignment_bp.route("/deliveries", methods=["POST"])
@@ -70,19 +60,31 @@ def create_delivery():
             "error": "Authentication required"
         }), 401
 
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
+
+        conn = get_connection()
+
+        cur = conn.cursor(
+            cursor_factory=RealDictCursor
+        )
+
+        # ----------------------------------------------------
+        # CONFIRM RETAILER
+        # ----------------------------------------------------
 
         cur.execute(
             """
             SELECT
                 user_id,
                 name,
+                phone,
                 role
-            FROM Users
+            FROM users
             WHERE user_id = %s
+            LIMIT 1
             """,
             (retailer_id,)
         )
@@ -94,70 +96,139 @@ def create_delivery():
                 "error": "Logged-in user is not a valid Retailer"
             }), 403
 
+        # ----------------------------------------------------
+        # CREATE DELIVERY
+        # PostgreSQL uses RETURNING instead of lastrowid
+        # ----------------------------------------------------
+
         cur.execute(
             """
-            INSERT INTO Deliveries
+            INSERT INTO deliveries
                 (
                     retailer_id,
+                    rider_id,
                     customer_name,
                     customer_phone,
                     delivery_address,
-                    item_description
+                    item_description,
+                    qr_code,
+                    status
                 )
             VALUES
-                (%s, %s, %s, %s, %s)
+                (
+                    %s,
+                    NULL,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    NULL,
+                    'OPEN'
+                )
+            RETURNING delivery_id
             """,
             (
                 retailer_id,
-                body["customer_name"],
-                body["customer_phone"],
-                body["delivery_address"],
-                body["item_description"]
+                body["customer_name"].strip(),
+                body["customer_phone"].strip(),
+                body["delivery_address"].strip(),
+                body["item_description"].strip()
             )
         )
 
-        delivery_id = cur.lastrowid
+        result = cur.fetchone()
+        delivery_id = result["delivery_id"]
+
+        # ----------------------------------------------------
+        # RECORD INITIAL STATUS
+        # ----------------------------------------------------
+
+        cur.execute(
+            """
+            INSERT INTO status_history
+                (
+                    delivery_id,
+                    changed_by,
+                    status
+                )
+            VALUES
+                (
+                    %s,
+                    %s,
+                    'OPEN'
+                )
+            """,
+            (
+                delivery_id,
+                retailer_id
+            )
+        )
+
+        # ----------------------------------------------------
+        # SAVE
+        # ----------------------------------------------------
 
         conn.commit()
 
+        # ----------------------------------------------------
+        # SUCCESS
+        # ----------------------------------------------------
+
         return jsonify({
             "success": True,
+            "message": "Delivery request created successfully.",
             "delivery_id": delivery_id,
             "retailer_id": retailer_id,
+            "retailer_name": retailer["name"],
+            "retailer_phone": retailer["phone"],
+            "customer_name": body["customer_name"].strip(),
+            "customer_phone": body["customer_phone"].strip(),
+            "delivery_address": body["delivery_address"].strip(),
+            "item_description": body["item_description"].strip(),
             "status": "OPEN"
         }), 201
 
     except Exception as error:
 
-        conn.rollback()
+        if conn:
+            conn.rollback()
 
         print("Create delivery error:", error)
 
         return jsonify({
-            "error": "Unable to create delivery"
+            "success": False,
+            "error": "Unable to create delivery",
+            "message": str(error)
         }), 500
 
     finally:
 
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+
+        if conn:
+            conn.close()
 
 
 # ============================================================
 # LIST OPEN DELIVERIES
-# ============================================================
-#
-# Dispatcher can see available delivery requests.
+# GET /deliveries
 # ============================================================
 
 @assignment_bp.route("/deliveries", methods=["GET"])
 @role_required("Dispatcher")
 def list_open_deliveries():
 
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
+
+        conn = get_connection()
+
+        cur = conn.cursor(
+            cursor_factory=RealDictCursor
+        )
 
         cur.execute(
             """
@@ -170,7 +241,7 @@ def list_open_deliveries():
                 item_description,
                 status,
                 created_at
-            FROM Deliveries
+            FROM deliveries
             WHERE status = 'OPEN'
             ORDER BY created_at ASC
             """
@@ -190,25 +261,32 @@ def list_open_deliveries():
 
     finally:
 
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+
+        if conn:
+            conn.close()
 
 
 # ============================================================
 # LIST RIDERS
-# ============================================================
-#
-# Dispatcher can retrieve available riders.
+# GET /riders
 # ============================================================
 
 @assignment_bp.route("/riders", methods=["GET"])
 @role_required("Dispatcher")
 def list_riders():
 
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
+
+        conn = get_connection()
+
+        cur = conn.cursor(
+            cursor_factory=RealDictCursor
+        )
 
         cur.execute(
             """
@@ -216,7 +294,7 @@ def list_riders():
                 user_id,
                 name,
                 phone
-            FROM Users
+            FROM users
             WHERE role = 'Rider'
             ORDER BY name ASC
             """
@@ -236,25 +314,16 @@ def list_riders():
 
     finally:
 
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+
+        if conn:
+            conn.close()
 
 
 # ============================================================
 # ASSIGN DELIVERY
-# ============================================================
-#
-# Dispatcher assigns an open delivery to a rider.
-#
-# dispatcher_id comes automatically from the logged-in session.
-# Frontend only sends rider_id.
-#
-# QR CODE:
-# A fixed demo QR code is stored with the assignment.
-#
-# SMS:
-# After successful assignment, an SMS notification is sent
-# using the SMS stub in sms_service.py.
+# POST /deliveries/<delivery_id>/assign
 # ============================================================
 
 @assignment_bp.route(
@@ -285,13 +354,19 @@ def assign_delivery(delivery_id):
             "error": "Authentication required"
         }), 401
 
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
 
+        conn = get_connection()
+
+        cur = conn.cursor(
+            cursor_factory=RealDictCursor
+        )
+
         # ----------------------------------------------------
-        # CONFIRM LOGGED-IN USER IS A DISPATCHER
+        # CONFIRM DISPATCHER
         # ----------------------------------------------------
 
         cur.execute(
@@ -300,24 +375,28 @@ def assign_delivery(delivery_id):
                 user_id,
                 name,
                 role
-            FROM Users
+            FROM users
             WHERE user_id = %s
+            LIMIT 1
             """,
             (dispatcher_id,)
         )
 
         dispatcher = cur.fetchone()
 
-        if dispatcher is None or dispatcher["role"] != "Dispatcher":
+        if (
+            dispatcher is None
+            or dispatcher["role"] != "Dispatcher"
+        ):
             return jsonify({
-                "error": "Logged-in user is not a valid Dispatcher"
+                "error": (
+                    "Logged-in user is not "
+                    "a valid Dispatcher"
+                )
             }), 403
 
         # ----------------------------------------------------
         # CHECK DELIVERY
-        #
-        # Retrieve customer details as well because they are
-        # required for the SMS notification.
         # ----------------------------------------------------
 
         cur.execute(
@@ -327,8 +406,9 @@ def assign_delivery(delivery_id):
                 status,
                 customer_phone,
                 customer_name
-            FROM Deliveries
+            FROM deliveries
             WHERE delivery_id = %s
+            LIMIT 1
             """,
             (delivery_id,)
         )
@@ -367,8 +447,9 @@ def assign_delivery(delivery_id):
                 name,
                 phone,
                 role
-            FROM Users
+            FROM users
             WHERE user_id = %s
+            LIMIT 1
             """,
             (rider_id,)
         )
@@ -385,7 +466,7 @@ def assign_delivery(delivery_id):
             }), 400
 
         # ----------------------------------------------------
-        # USE FIXED DEMO QR CODE
+        # USE DEMO QR
         # ----------------------------------------------------
 
         qr_code = DEMO_QR_CODE
@@ -396,11 +477,12 @@ def assign_delivery(delivery_id):
 
         cur.execute(
             """
-            UPDATE Deliveries
+            UPDATE deliveries
             SET
                 rider_id = %s,
                 status = 'ASSIGNED',
-                qr_code = %s
+                qr_code = %s,
+                updated_at = CURRENT_TIMESTAMP
             WHERE delivery_id = %s
             """,
             (
@@ -416,7 +498,7 @@ def assign_delivery(delivery_id):
 
         cur.execute(
             """
-            INSERT INTO Status_history
+            INSERT INTO status_history
                 (
                     delivery_id,
                     changed_by,
@@ -436,20 +518,13 @@ def assign_delivery(delivery_id):
         )
 
         # ----------------------------------------------------
-        # SAVE DATABASE CHANGES
+        # SAVE
         # ----------------------------------------------------
 
         conn.commit()
 
         # ----------------------------------------------------
         # SEND CUSTOMER SMS
-        # ----------------------------------------------------
-        #
-        # Currently this uses the SMS stub.
-        # The message will appear in the Flask terminal.
-        #
-        # Later, sms_service.py can be connected to a real
-        # SMS provider without changing this endpoint.
         # ----------------------------------------------------
 
         sms_result = send_sms(
@@ -462,7 +537,7 @@ def assign_delivery(delivery_id):
         )
 
         # ----------------------------------------------------
-        # RETURN SUCCESS
+        # SUCCESS
         # ----------------------------------------------------
 
         return jsonify({
@@ -477,16 +552,21 @@ def assign_delivery(delivery_id):
 
     except Exception as error:
 
-        conn.rollback()
+        if conn:
+            conn.rollback()
 
         print("Assignment error:", error)
 
         return jsonify({
-            "error": "Unable to assign delivery"
+            "success": False,
+            "error": "Unable to assign delivery",
+            "message": str(error)
         }), 500
 
     finally:
 
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
 
+        if conn:
+            conn.close()
