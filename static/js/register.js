@@ -1,4 +1,4 @@
-```javascript
+
 // ============================================================
 // REFLEX REGISTRATION
 // Account creation
@@ -29,14 +29,32 @@ document.addEventListener("DOMContentLoaded", function () {
 
         event.preventDefault();
 
-        const name = document.getElementById("name").value.trim();
-        const phone = document.getElementById("phone").value.trim();
-        const password = document.getElementById("password").value;
-        const confirmPassword =
-            document.getElementById("confirm_password").value;
-        const role = document.getElementById("role").value;
+        const name = document
+            .getElementById("name")
+            .value
+            .trim();
 
-        // Frontend validation
+        const phone = document
+            .getElementById("phone")
+            .value
+            .trim();
+
+        const password = document
+            .getElementById("password")
+            .value;
+
+        const confirmPassword = document
+            .getElementById("confirm_password")
+            .value;
+
+        const role = document
+            .getElementById("role")
+            .value;
+
+        // ====================================================
+        // VALIDATION
+        // ====================================================
+
         if (!name) {
             showError("Please enter your full name.");
             return;
@@ -53,7 +71,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (password.length < 6) {
-            showError("Password must be at least 6 characters.");
+            showError(
+                "Password must be at least 6 characters."
+            );
             return;
         }
 
@@ -67,11 +87,18 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        // ====================================================
+        // DISABLE BUTTON
+        // ====================================================
+
         registerButton.disabled = true;
         registerButton.textContent = "Creating account...";
 
-        message.textContent = "Creating your account...";
-        message.className = "message";
+        showSuccess("Creating your account...");
+
+        // ====================================================
+        // REGISTRATION DATA
+        // ====================================================
 
         const registrationData = {
             name: name,
@@ -85,44 +112,66 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const response = await fetch("/register", {
                 method: "POST",
+
                 headers: {
                     "Content-Type": "application/json"
                 },
+
                 credentials: "same-origin",
+
                 body: JSON.stringify(registrationData)
             });
 
-            const result = await response.json();
+            const contentType =
+                response.headers.get("content-type") || "";
 
-            if (response.ok) {
+            let result = {};
 
-                showSuccess(
-                    result.message ||
-                    "Account created successfully."
-                );
-
-                form.reset();
-
-                setTimeout(function () {
-                    window.location.href =
-                        result.redirect || "/login";
-                }, 1500);
-
+            if (contentType.includes("application/json")) {
+                result = await response.json();
             } else {
+                throw new Error(
+                    "The server returned an unexpected response."
+                );
+            }
 
-                // Display Flask's actual error message
+            // =================================================
+            // REGISTRATION FAILED
+            // =================================================
+
+            if (!response.ok) {
+
                 showError(
                     result.error ||
                     result.message ||
                     "Registration failed."
                 );
+
+                return;
             }
+
+            // =================================================
+            // REGISTRATION SUCCESSFUL
+            // =================================================
+
+            showSuccess(
+                result.message ||
+                "Account created successfully."
+            );
+
+            // Go to login immediately
+            window.location.href =
+                result.redirect || "/login";
 
         } catch (error) {
 
-            console.error("Registration error:", error);
+            console.error(
+                "Registration error:",
+                error
+            );
 
             showError(
+                error.message ||
                 "Could not connect to the Reflex server."
             );
 
@@ -133,4 +182,4 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 });
-```
+
