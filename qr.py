@@ -1,11 +1,11 @@
-
+```python
 # ============================================================
 # REFLEX QR CONFIRMATION
 # ============================================================
 #
 # Handles QR confirmation for deliveries.
 #
-# Current prototype behavior:
+# Prototype behavior:
 #   1. Rider must be logged in.
 #   2. Delivery must belong to that rider.
 #   3. Delivery must be PICKED_UP.
@@ -14,13 +14,13 @@
 #
 #          PICKED_UP -> DELIVERED
 #
-#   6. Every QR attempt is recorded in QR_confirmations.
+#   6. Every QR attempt is recorded in qr_confirmations.
 #   7. Customer receives an SMS after successful delivery.
 #
 # ============================================================
 
-
 from flask import Blueprint, jsonify, request, session
+from psycopg2.extras import RealDictCursor
 
 from db import get_connection
 from auth import role_required
@@ -88,20 +88,23 @@ def qr_confirm(delivery_id):
             "error": "qr_code is required"
         }), 400
 
-    # --------------------------------------------------------
-    # Connect to database
-    # --------------------------------------------------------
-
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
 
         # ----------------------------------------------------
+        # Connect to PostgreSQL
+        # ----------------------------------------------------
+
+        conn = get_connection()
+
+        cur = conn.cursor(
+            cursor_factory=RealDictCursor
+        )
+
+        # ----------------------------------------------------
         # Find delivery
-        #
-        # Customer information is also retrieved because it
-        # is required for the delivery confirmation SMS.
         # ----------------------------------------------------
 
         cur.execute(
@@ -113,8 +116,9 @@ def qr_confirm(delivery_id):
                 qr_code,
                 customer_phone,
                 customer_name
-            FROM Deliveries
+            FROM deliveries
             WHERE delivery_id = %s
+            LIMIT 1
             """,
             (delivery_id,)
         )
@@ -160,16 +164,6 @@ def qr_confirm(delivery_id):
         # ----------------------------------------------------
         # Validate demo QR code
         # ----------------------------------------------------
-        #
-        # The submitted code must be:
-        #
-        #     REFLEX-DELIVERY
-        #
-        # The comparison is case-insensitive.
-        #
-        # The stored database value must also contain the
-        # same demo QR code.
-        # ----------------------------------------------------
 
         stored_code = delivery["qr_code"]
 
@@ -197,7 +191,7 @@ def qr_confirm(delivery_id):
 
         cur.execute(
             """
-            INSERT INTO QR_confirmations
+            INSERT INTO qr_confirmations
                 (
                     delivery_id,
                     qr_code,
@@ -238,12 +232,8 @@ def qr_confirm(delivery_id):
 
         # ----------------------------------------------------
         # Successful QR confirmation
-        # ----------------------------------------------------
         #
         # PICKED_UP -> DELIVERED
-        #
-        # apply_transition() also creates a record in
-        # Status_history.
         # ----------------------------------------------------
 
         apply_transition(
@@ -260,14 +250,7 @@ def qr_confirm(delivery_id):
         conn.commit()
 
         # ----------------------------------------------------
-        # SEND CUSTOMER SMS
-        # ----------------------------------------------------
-        #
-        # Currently this uses the SMS stub.
-        # The message will appear in the Flask terminal.
-        #
-        # Later, sms_service.py can be connected to a real
-        # SMS provider.
+        # Send customer SMS
         # ----------------------------------------------------
 
         sms_result = send_sms(
@@ -295,11 +278,8 @@ def qr_confirm(delivery_id):
 
     except Exception as error:
 
-        # ----------------------------------------------------
-        # Roll back failed database transaction
-        # ----------------------------------------------------
-
-        conn.rollback()
+        if conn:
+            conn.rollback()
 
         print(
             "QR confirmation error:",
@@ -307,17 +287,16 @@ def qr_confirm(delivery_id):
         )
 
         return jsonify({
-            "error": (
-                "Unable to process QR confirmation"
-            )
+            "success": False,
+            "error": "Unable to process QR confirmation",
+            "message": str(error)
         }), 500
 
     finally:
 
-        # ----------------------------------------------------
-        # Always close database resources
-        # ----------------------------------------------------
+        if cur:
+            cur.close()
 
-        cur.close()
-        conn.close()
-
+        if conn:
+            conn.close()
+```
