@@ -1,5 +1,7 @@
-
+```python
 from flask import Blueprint, jsonify, request, session
+from psycopg2.extras import RealDictCursor
+
 from db import get_connection
 from auth import role_required
 
@@ -15,15 +17,17 @@ VALID_TRANSITIONS = {
 
 def apply_transition(cur, delivery_id, changed_by, new_status):
     """
-    Performs the actual status UPDATE and Status_history INSERT.
+    Performs the actual status UPDATE and status_history INSERT.
 
     The rider identity is supplied by the caller after it has already
     been obtained from the authenticated Flask session.
     """
+
     cur.execute(
         """
-        UPDATE Deliveries
-        SET status = %s
+        UPDATE deliveries
+        SET status = %s,
+            updated_at = CURRENT_TIMESTAMP
         WHERE delivery_id = %s
         """,
         (new_status, delivery_id),
@@ -31,8 +35,10 @@ def apply_transition(cur, delivery_id, changed_by, new_status):
 
     cur.execute(
         """
-        INSERT INTO Status_history (delivery_id, changed_by, status)
-        VALUES (%s, %s, %s)
+        INSERT INTO status_history
+            (delivery_id, changed_by, status)
+        VALUES
+            (%s, %s, %s)
         """,
         (delivery_id, changed_by, new_status),
     )
@@ -46,7 +52,7 @@ def apply_transition(cur, delivery_id, changed_by, new_status):
 @role_required("Rider")
 def list_rider_deliveries():
 
-    # Get the rider automatically from the logged-in session.
+    # Get rider automatically from the logged-in session.
     rider_id = session.get("user_id")
 
     if not rider_id:
@@ -56,10 +62,12 @@ def list_rider_deliveries():
 
     status_filter = request.args.get("status")
 
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         if status_filter == "active":
 
@@ -75,7 +83,7 @@ def list_rider_deliveries():
                     status,
                     created_at,
                     updated_at
-                FROM Deliveries
+                FROM deliveries
                 WHERE rider_id = %s
                   AND status IN ('ASSIGNED', 'PICKED_UP')
                 ORDER BY updated_at ASC
@@ -97,7 +105,7 @@ def list_rider_deliveries():
                     status,
                     created_at,
                     updated_at
-                FROM Deliveries
+                FROM deliveries
                 WHERE rider_id = %s
                 ORDER BY updated_at DESC
                 """,
@@ -113,12 +121,16 @@ def list_rider_deliveries():
         print("Load rider deliveries error:", error)
 
         return jsonify({
-            "error": "Unable to load deliveries"
+            "error": "Unable to load deliveries",
+            "message": str(error)
         }), 500
 
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+
+        if conn:
+            conn.close()
 
 
 # ============================================================
@@ -156,19 +168,29 @@ def update_status(delivery_id):
 
     if new_status not in ("PICKED_UP", "DELIVERED"):
         return jsonify({
-            "error": f"'{new_status}' is not a status a rider can set directly"
+            "error": (
+                f"'{new_status}' is not a status "
+                "a rider can set directly"
+            )
         }), 400
 
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Find the delivery and its assigned rider.
+        # ----------------------------------------------------
+        # Find delivery and assigned rider
+        # ----------------------------------------------------
+
         cur.execute(
             """
-            SELECT status, rider_id
-            FROM Deliveries
+            SELECT
+                status,
+                rider_id
+            FROM deliveries
             WHERE delivery_id = %s
             """,
             (delivery_id,),
@@ -181,13 +203,20 @@ def update_status(delivery_id):
                 "error": f"No delivery found with id {delivery_id}"
             }), 404
 
-        # Make sure this delivery belongs to the logged-in rider.
+        # ----------------------------------------------------
+        # Make sure delivery belongs to logged-in rider
+        # ----------------------------------------------------
+
         if str(delivery["rider_id"]) != str(rider_id):
             return jsonify({
                 "error": "You are not assigned to this delivery"
             }), 403
 
         current_status = delivery["status"]
+
+        # ----------------------------------------------------
+        # Validate status transition
+        # ----------------------------------------------------
 
         allowed_next = VALID_TRANSITIONS.get(
             current_status,
@@ -202,13 +231,16 @@ def update_status(delivery_id):
                 )
             }), 409
 
-        # DELIVERED requires successful QR confirmation.
+        # ----------------------------------------------------
+        # DELIVERED requires successful QR confirmation
+        # ----------------------------------------------------
+
         if new_status == "DELIVERED":
 
             cur.execute(
                 """
                 SELECT confirmation_id
-                FROM QR_confirmations
+                FROM qr_confirmations
                 WHERE delivery_id = %s
                   AND result = 'Successful'
                 ORDER BY scanned_at DESC
@@ -221,11 +253,17 @@ def update_status(delivery_id):
 
             if confirmation is None:
                 return jsonify({
-                    "error": "DELIVERED requires a successful QR scan first",
+                    "error": (
+                        "DELIVERED requires a successful "
+                        "QR scan first"
+                    ),
                     "delivery_id": delivery_id
                 }), 409
 
-        # Apply transition using the logged-in rider as changed_by.
+        # ----------------------------------------------------
+        # Apply transition
+        # ----------------------------------------------------
+
         apply_transition(
             cur,
             delivery_id,
@@ -236,6 +274,7 @@ def update_status(delivery_id):
         conn.commit()
 
         return jsonify({
+            "success": True,
             "delivery_id": delivery_id,
             "previous_status": current_status,
             "status": new_status
@@ -243,15 +282,20 @@ def update_status(delivery_id):
 
     except Exception as error:
 
-        conn.rollback()
+        if conn:
+            conn.rollback()
 
         print("Update delivery status error:", error)
 
         return jsonify({
-            "error": "Unable to update delivery status"
+            "error": "Unable to update delivery status",
+            "message": str(error)
         }), 500
 
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
 
+        if conn:
+            conn.close()
+```
