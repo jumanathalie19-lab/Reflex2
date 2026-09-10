@@ -9,7 +9,6 @@ from psycopg2.extras import RealDictCursor
 
 from db import get_connection
 from statusendpoint import apply_transition
-from sms import send_sms
 
 
 qr_bp = Blueprint("qr", __name__)
@@ -18,9 +17,6 @@ qr_bp = Blueprint("qr", __name__)
 # ------------------------------------------------------------
 # DEMO QR CODE
 # ------------------------------------------------------------
-# For the project demo, every assigned delivery uses this QR.
-# The value is checked in this file but is NOT stored in the
-# qr_confirmations table.
 DEMO_QR_CODE = "REFLEX-DELIVERY"
 
 
@@ -74,7 +70,7 @@ def confirm_qr(delivery_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # ----------------------------------------------------
-        # CHECK DELIVERY
+        # GET DELIVERY
         # ----------------------------------------------------
         cur.execute("""
             SELECT
@@ -118,20 +114,28 @@ def confirm_qr(delivery_id):
             }), 400
 
         # ----------------------------------------------------
-        # DETERMINE EXPECTED QR
+        # GET EXPECTED QR
         # ----------------------------------------------------
         stored_qr = delivery.get("qr_code")
 
-        # If a QR was stored during assignment, use it.
-        # Otherwise use the demo QR.
-        expected_qr = stored_qr or DEMO_QR_CODE
+        if stored_qr:
+            expected_qr = stored_qr
+        else:
+            expected_qr = DEMO_QR_CODE
 
         # ----------------------------------------------------
-        # VALIDATE QR
+        # CHECK QR CODE
         # ----------------------------------------------------
         if submitted_qr != expected_qr:
+
             # Record failed attempt.
-            # qr_confirmations does NOT have a qr_code column.
+            # qr_confirmations contains:
+            # confirmation_id
+            # delivery_id
+            # rider_id
+            # result
+            # scanned_at
+
             cur.execute("""
                 INSERT INTO qr_confirmations
                     (delivery_id, rider_id, result)
@@ -178,25 +182,8 @@ def confirm_qr(delivery_id):
         conn.commit()
 
         # ----------------------------------------------------
-        # SEND SMS
-        # ----------------------------------------------------
-        try:
-            customer_phone = delivery["customer_phone"]
-            customer_name = delivery["customer_name"]
-
-            if customer_phone:
-                send_sms(
-                    customer_phone,
-                    (
-                        f"Hello {customer_name}, your Reflex delivery "
-                        f"has been successfully delivered."
-                    )
-                )
-
-        except Exception:
-            # SMS failure should not undo a successful delivery.
-            pass
-
+        # SUCCESS RESPONSE
+        # --------------------------------------------------------
         return jsonify({
             "success": True,
             "message": "QR confirmed successfully. Delivery completed.",
@@ -224,5 +211,3 @@ def confirm_qr(delivery_id):
 
         if conn:
             conn.close()
-
-
