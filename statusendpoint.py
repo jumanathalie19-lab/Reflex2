@@ -1,4 +1,4 @@
-```python
+
 from flask import Blueprint, jsonify, request, session
 from psycopg2.extras import RealDictCursor
 
@@ -298,4 +298,4 @@ def update_status(delivery_id):
 
         if conn:
             conn.close()
-```
+
