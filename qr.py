@@ -1,241 +1,173 @@
 
 # ============================================================
 # REFLEX QR CONFIRMATION
-# ============================================================
-#
-# Handles QR confirmation for deliveries.
-#
-# Prototype behavior:
-#   1. Rider must be logged in.
-#   2. Delivery must belong to that rider.
-#   3. Delivery must be PICKED_UP.
-#   4. Demo QR code is REFLEX-DELIVERY.
-#   5. Successful QR confirmation changes:
-#
-#          PICKED_UP -> DELIVERED
-#
-#   6. Every QR attempt is recorded in qr_confirmations.
-#   7. Customer receives an SMS after successful delivery.
-#
+# PostgreSQL version
 # ============================================================
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
 
 from db import get_connection
-from auth import role_required
 from statusendpoint import apply_transition
-from sms_service import send_sms
+from sms import send_sms
 
-
-# ============================================================
-# BLUEPRINT
-# ============================================================
 
 qr_bp = Blueprint("qr", __name__)
 
 
-# ============================================================
+# ------------------------------------------------------------
 # DEMO QR CODE
-# ============================================================
-
+# ------------------------------------------------------------
+# For the project demo, every assigned delivery uses this QR.
+# The value is checked in this file but is NOT stored in the
+# qr_confirmations table.
 DEMO_QR_CODE = "REFLEX-DELIVERY"
 
 
-# ============================================================
-# CONFIRM DELIVERY USING QR CODE
-# ============================================================
-
+# ------------------------------------------------------------
+# CONFIRM QR CODE
+# ------------------------------------------------------------
 @qr_bp.route(
     "/deliveries/<int:delivery_id>/qr-confirm",
     methods=["POST"]
 )
-@role_required("Rider")
-def qr_confirm(delivery_id):
+def confirm_qr(delivery_id):
 
     # --------------------------------------------------------
-    # Get logged-in rider from Flask session
+    # CHECK LOGIN
     # --------------------------------------------------------
-
     rider_id = session.get("user_id")
+    role = session.get("role")
 
     if not rider_id:
         return jsonify({
-            "error": "Authentication required"
+            "success": False,
+            "message": "You must be logged in."
         }), 401
 
-    # --------------------------------------------------------
-    # Read JSON request
-    # --------------------------------------------------------
-
-    body = request.get_json(silent=True)
-
-    if not isinstance(body, dict):
+    if role != "Rider":
         return jsonify({
-            "error": "Request body must be a JSON object"
-        }), 400
+            "success": False,
+            "message": "Only riders can confirm delivery QR codes."
+        }), 403
 
     # --------------------------------------------------------
-    # Get submitted QR code
+    # GET SUBMITTED QR CODE
     # --------------------------------------------------------
+    data = request.get_json(silent=True) or {}
 
-    submitted_code = str(
-        body.get("qr_code", "")
+    submitted_qr = str(
+        data.get("qr_code", "")
     ).strip()
 
-    if not submitted_code:
+    if not submitted_qr:
         return jsonify({
-            "error": "qr_code is required"
+            "success": False,
+            "message": "QR code is required."
         }), 400
 
     conn = None
     cur = None
 
     try:
-
-        # ----------------------------------------------------
-        # Connect to PostgreSQL
-        # ----------------------------------------------------
-
         conn = get_connection()
-
-        cur = conn.cursor(
-            cursor_factory=RealDictCursor
-        )
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # ----------------------------------------------------
-        # Find delivery
+        # CHECK DELIVERY
         # ----------------------------------------------------
-
-        cur.execute(
-            """
+        cur.execute("""
             SELECT
                 delivery_id,
-                status,
                 rider_id,
-                qr_code,
+                customer_name,
                 customer_phone,
-                customer_name
+                status,
+                qr_code
             FROM deliveries
             WHERE delivery_id = %s
-            LIMIT 1
-            """,
-            (delivery_id,)
-        )
+        """, (delivery_id,))
 
         delivery = cur.fetchone()
 
-        # ----------------------------------------------------
-        # Delivery does not exist
-        # ----------------------------------------------------
-
-        if delivery is None:
+        if not delivery:
             return jsonify({
-                "error": (
-                    f"No delivery found with id "
-                    f"{delivery_id}"
-                )
+                "success": False,
+                "message": "Delivery not found."
             }), 404
 
         # ----------------------------------------------------
-        # Make sure delivery belongs to logged-in rider
+        # CHECK RIDER OWNERSHIP
         # ----------------------------------------------------
-
-        if str(delivery["rider_id"]) != str(rider_id):
+        if delivery["rider_id"] != rider_id:
             return jsonify({
-                "error": (
-                    "You are not assigned to this delivery"
-                )
+                "success": False,
+                "message": "This delivery is not assigned to you."
             }), 403
 
         # ----------------------------------------------------
-        # QR confirmation only works for PICKED_UP
+        # CHECK DELIVERY STATUS
         # ----------------------------------------------------
-
         if delivery["status"] != "PICKED_UP":
             return jsonify({
-                "error": (
-                    "Cannot QR-confirm a delivery with "
-                    f"status '{delivery['status']}'. "
-                    "Delivery must be PICKED_UP first."
+                "success": False,
+                "message": (
+                    "QR confirmation is only allowed after "
+                    "the delivery has been picked up."
                 )
-            }), 409
+            }), 400
 
         # ----------------------------------------------------
-        # Validate demo QR code
+        # DETERMINE EXPECTED QR
         # ----------------------------------------------------
+        stored_qr = delivery.get("qr_code")
 
-        stored_code = delivery["qr_code"]
-
-        is_match = (
-            stored_code is not None
-            and str(stored_code).strip().upper()
-            == DEMO_QR_CODE
-            and submitted_code.upper()
-            == DEMO_QR_CODE
-        )
+        # If a QR was stored during assignment, use it.
+        # Otherwise use the demo QR.
+        expected_qr = stored_qr or DEMO_QR_CODE
 
         # ----------------------------------------------------
-        # Determine scan result
+        # VALIDATE QR
         # ----------------------------------------------------
-
-        result = (
-            "Successful"
-            if is_match
-            else "Failed"
-        )
-
-        # ----------------------------------------------------
-        # Record QR attempt
-        # ----------------------------------------------------
-
-        cur.execute(
-            """
-            INSERT INTO qr_confirmations
-                (
-                    delivery_id,
-                    qr_code,
-                    scanned_by,
-                    result
-                )
-            VALUES
-                (
-                    %s,
-                    %s,
-                    %s,
-                    %s
-                )
-            """,
-            (
+        if submitted_qr != expected_qr:
+            # Record failed attempt.
+            # qr_confirmations does NOT have a qr_code column.
+            cur.execute("""
+                INSERT INTO qr_confirmations
+                    (delivery_id, rider_id, result)
+                VALUES
+                    (%s, %s, %s)
+            """, (
                 delivery_id,
-                submitted_code,
                 rider_id,
-                result
-            )
-        )
-
-        # ----------------------------------------------------
-        # Invalid QR code
-        # ----------------------------------------------------
-
-        if not is_match:
+                "Failed"
+            ))
 
             conn.commit()
 
             return jsonify({
-                "error": (
-                    "Invalid demo QR code. "
-                    "Use REFLEX-DELIVERY."
-                ),
-                "result": "fail"
-            }), 409
+                "success": False,
+                "message": "Invalid QR code."
+            }), 400
 
         # ----------------------------------------------------
-        # Successful QR confirmation
-        #
+        # RECORD SUCCESSFUL QR CONFIRMATION
+        # ----------------------------------------------------
+        cur.execute("""
+            INSERT INTO qr_confirmations
+                (delivery_id, rider_id, result)
+            VALUES
+                (%s, %s, %s)
+        """, (
+            delivery_id,
+            rider_id,
+            "Successful"
+        ))
+
+        # ----------------------------------------------------
+        # CHANGE DELIVERY STATUS
         # PICKED_UP -> DELIVERED
         # ----------------------------------------------------
-
         apply_transition(
             cur,
             delivery_id,
@@ -243,53 +175,46 @@ def qr_confirm(delivery_id):
             "DELIVERED"
         )
 
-        # ----------------------------------------------------
-        # Save database transaction
-        # ----------------------------------------------------
-
         conn.commit()
 
         # ----------------------------------------------------
-        # Send customer SMS
+        # SEND SMS
         # ----------------------------------------------------
+        try:
+            customer_phone = delivery["customer_phone"]
+            customer_name = delivery["customer_name"]
 
-        sms_result = send_sms(
-            delivery["customer_phone"],
-            (
-                f"Hi {delivery['customer_name']}, your Reflex "
-                f"delivery has been confirmed as delivered. "
-                f"Thank you!"
-            )
-        )
+            if customer_phone:
+                send_sms(
+                    customer_phone,
+                    (
+                        f"Hello {customer_name}, your Reflex delivery "
+                        f"has been successfully delivered."
+                    )
+                )
 
-        # ----------------------------------------------------
-        # Return success
-        # ----------------------------------------------------
+        except Exception:
+            # SMS failure should not undo a successful delivery.
+            pass
 
         return jsonify({
             "success": True,
+            "message": "QR confirmed successfully. Delivery completed.",
             "delivery_id": delivery_id,
-            "previous_status": "PICKED_UP",
-            "status": "DELIVERED",
-            "result": "success",
-            "message": "Delivery confirmed successfully",
-            "sms": sms_result
+            "status": "DELIVERED"
         }), 200
 
-    except Exception as error:
+    except Exception as e:
 
         if conn:
             conn.rollback()
 
-        print(
-            "QR confirmation error:",
-            error
-        )
+        print("QR CONFIRMATION ERROR:", e)
 
         return jsonify({
             "success": False,
-            "error": "Unable to process QR confirmation",
-            "message": str(error)
+            "message": "QR confirmation failed.",
+            "error": str(e)
         }), 500
 
     finally:
@@ -299,3 +224,5 @@ def qr_confirm(delivery_id):
 
         if conn:
             conn.close()
+
+
