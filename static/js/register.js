@@ -1,4 +1,4 @@
-```javascript
+
 // ============================================================
 // REFLEX REGISTRATION
 // Account creation
@@ -133,4 +133,3 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 });
-```
