@@ -337,3 +337,22 @@ body {
     }
 
 }
+.message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.message.error {
+    background: #ffe5e5;
+    color: #b00020;
+    border: 1px solid #ffb3b3;
+}
+
+.message.success {
+    background: #e5f8e9;
+    color: #187a2f;
+    border: 1px solid #a8dfb3;
+}
