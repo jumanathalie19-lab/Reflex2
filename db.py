@@ -2,7 +2,7 @@ import os
 import psycopg2
 
 
-DATABASE_URL = os.environ.get("postgresql://postgres:[%Nathalie@2005.%]@db.dbdfngspeaqydrmbqyts.supabase.co:5432/postgres")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
 def get_connection():
@@ -12,7 +12,7 @@ def get_connection():
         )
 
     try:
-        return psycopg2.connect(postgresql://postgres:[%Nathalie@2005.%]@db.dbdfngspeaqydrmbqyts.supabase.co:5432/postgres)
+        return psycopg2.connect(DATABASE_URL)
     except psycopg2.Error as e:
         raise RuntimeError(
             f"Could not connect to PostgreSQL database: {e}"
