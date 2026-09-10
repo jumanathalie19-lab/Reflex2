@@ -1,3 +1,4 @@
+```python
 from functools import wraps
 
 from flask import (
@@ -11,6 +12,7 @@ from flask import (
 )
 
 from werkzeug.security import check_password_hash, generate_password_hash
+from psycopg2.extras import RealDictCursor
 
 from db import get_connection
 
@@ -29,7 +31,6 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/login", methods=["GET"])
 def login_page():
 
-    # Already logged in
     if "user_id" in session:
         return redirect(url_for("dashboard"))
 
@@ -63,10 +64,15 @@ def login():
             "error": "Password is required"
         }), 400
 
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
+
+        conn = get_connection()
+
+        # PostgreSQL dictionary-style cursor
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute(
             """
@@ -151,8 +157,11 @@ def login():
 
     finally:
 
-        cur.close()
-        conn.close()
+        if cur is not None:
+            cur.close()
+
+        if conn is not None:
+            conn.close()
 
 
 # ============================================================
@@ -162,7 +171,6 @@ def login():
 @auth_bp.route("/register", methods=["GET"])
 def register_page():
 
-    # Already logged in
     if "user_id" in session:
         return redirect(url_for("dashboard"))
 
@@ -231,14 +239,15 @@ def register():
             "error": "Please select a valid role"
         }), 400
 
-    # ========================================================
-    # DATABASE CONNECTION
-    # ========================================================
-
-    conn = get_connection()
-    cur = conn.cursor(dictionary=True)
+    conn = None
+    cur = None
 
     try:
+
+        conn = get_connection()
+
+        # PostgreSQL dictionary-style cursor
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # ----------------------------------------------------
         # CHECK IF PHONE ALREADY EXISTS
@@ -278,6 +287,7 @@ def register():
                 (name, phone, role, password_hash)
             VALUES
                 (%s, %s, %s, %s)
+            RETURNING user_id
             """,
             (
                 name,
@@ -287,7 +297,8 @@ def register():
             )
         )
 
-        user_id = cur.lastrowid
+        # PostgreSQL way of getting the new ID
+        user_id = cur.fetchone()["user_id"]
 
         conn.commit()
 
@@ -305,7 +316,8 @@ def register():
 
     except Exception as error:
 
-        conn.rollback()
+        if conn is not None:
+            conn.rollback()
 
         print("Registration error:", error)
 
@@ -315,8 +327,11 @@ def register():
 
     finally:
 
-        cur.close()
-        conn.close()
+        if cur is not None:
+            cur.close()
+
+        if conn is not None:
+            conn.close()
 
 
 # ============================================================
@@ -369,13 +384,11 @@ def login_required(view):
 
         if "user_id" not in session:
 
-            # API requests should receive JSON
             if request.path.startswith("/api/"):
                 return jsonify({
                     "error": "Authentication required"
                 }), 401
 
-            # Normal browser requests go to login
             return redirect(
                 url_for("auth.login_page")
             )
@@ -396,10 +409,6 @@ def role_required(*allowed_roles):
         @wraps(view)
         def wrapped_view(*args, **kwargs):
 
-            # ------------------------------------------------
-            # NOT LOGGED IN
-            # ------------------------------------------------
-
             if "user_id" not in session:
 
                 if request.path.startswith("/api/"):
@@ -410,10 +419,6 @@ def role_required(*allowed_roles):
                 return redirect(
                     url_for("auth.login_page")
                 )
-
-            # ------------------------------------------------
-            # CHECK ROLE
-            # ------------------------------------------------
 
             user_role = session.get("role")
 
@@ -433,3 +438,4 @@ def role_required(*allowed_roles):
         return wrapped_view
 
     return decorator
+```
